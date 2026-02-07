@@ -2,40 +2,7 @@ import BM25 from "okapibm25";
 import { embed, cosineSimilarity } from "ai";
 import { google } from "@ai-sdk/google";
 import { getAllEmbeddings } from "./generated/prisma/sql";
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { TrackWithLyrics } from "./track-search/page";
-
-const textSplitter = new RecursiveCharacterTextSplitter({
-  chunkSize: 1000,
-  chunkOverlap: 100,
-  separators: ["\n\n", "\n", " ", ""],
-});
-
-/* export const chunkEmails = async (emails: Email[]) => {
-  const emailsWithChunks: EmailChunk[] = [];
-  for (const email of emails) {
-    const chunks = await textSplitter.splitText(email.body);
-    chunks.forEach((chunk, chunkIndex) => {
-      emailsWithChunks.push({
-        id: email.id,
-        subject: email.subject,
-        chunk,
-        index: chunkIndex,
-        totalChunks: chunks.length,
-        from: email.from,
-        to: email.to,
-        timestamp: email.timestamp,
-      });
-    });
-  }
-  return emailsWithChunks;
-}; */
-
-/* export async function loadEmails(): Promise<Email[]> {
-  const filePath = path.join(process.cwd(), "data", "emails.json");
-  const fileContent = await fs.readFile(filePath, "utf-8");
-  return JSON.parse(fileContent);
-} */
 
 export async function searchWithBM25<T, K>(
   keywords: string[],
@@ -52,9 +19,6 @@ export async function searchWithBM25<T, K>(
     .sort((a, b) => b.score - a.score);
 }
 
-/* export const emailChunkToText = (email: EmailChunk): string => {
-  return `${email.subject} ${email.chunk}`;
-}; */
 
 export async function searchWithEmbeddings<
   T,
