@@ -88,13 +88,44 @@ async function loadSpotifyJsonFiles(): Promise<SpotifyStreamingRecord[]> {
 }
 
 /**
- * Extract unique tracks from streaming records
+ * Load existing tracks from extracted-tracks.json if it exists
  */
-function extractUniqueTracks(records: SpotifyStreamingRecord[]): UniqueTrack[] {
+async function loadExistingTracks(): Promise<UniqueTrack[]> {
+  const dataDir = path.join(process.cwd(), "data");
+  const extractedTracksPath = path.join(dataDir, "extracted-tracks.json");
+
+  try {
+    const data = await readFile(extractedTracksPath, "utf-8");
+    const tracks = JSON.parse(data);
+    console.log(`  ✓ Loaded ${tracks.length} existing tracks from cache`);
+    return tracks;
+  } catch (error) {
+    // File doesn't exist or is invalid - return empty array
+    console.log(`  ℹ No existing tracks cache found, starting fresh`);
+    return [];
+  }
+}
+
+/**
+ * Extract unique tracks from streaming records and merge with existing tracks
+ */
+async function extractUniqueTracks(
+  records: SpotifyStreamingRecord[]
+): Promise<UniqueTrack[]> {
   console.log("\nExtracting unique tracks...");
 
-  const trackMap = new Map<string, UniqueTrack>();
+  // Load existing tracks from cache
+  const existingTracks = await loadExistingTracks();
 
+  // Build map with existing tracks first
+  const trackMap = new Map<string, UniqueTrack>();
+  for (const track of existingTracks) {
+    trackMap.set(track.spotifyTrackUri, track);
+  }
+
+  const existingCount = trackMap.size;
+
+  // Add new tracks from current records
   for (const record of records) {
     // Only process music tracks (not episodes or audiobooks)
     if (
@@ -115,7 +146,12 @@ function extractUniqueTracks(records: SpotifyStreamingRecord[]): UniqueTrack[] {
   }
 
   const uniqueTracks = Array.from(trackMap.values());
-  console.log(`  Found ${uniqueTracks.length} unique tracks`);
+  const newTracksCount = uniqueTracks.length - existingCount;
+
+  console.log(`  Found ${uniqueTracks.length} total unique tracks`);
+  if (existingCount > 0) {
+    console.log(`  ✓ Added ${newTracksCount} new tracks to existing ${existingCount}`);
+  }
 
   return uniqueTracks;
 }
@@ -589,8 +625,8 @@ export async function main() {
       // Phase 1: Load all Spotify JSON files
       records = await loadSpotifyJsonFiles();
 
-      // Phase 2: Extract unique tracks
-      const uniqueTracks = extractUniqueTracks(records);
+      // Phase 2: Extract unique tracks (merges with existing cache)
+      const uniqueTracks = await extractUniqueTracks(records);
 
       // Output results to console
       console.log("\n=== Unique Tracks Extracted ===");
