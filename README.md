@@ -49,24 +49,28 @@ This hybrid approach enables complex queries that traditional search can't handl
 The Spotify data processing pipeline consists of four phases:
 
 #### Phase 1: Extract Unique Tracks
+
 - Reads Spotify streaming history JSON files from `/data/spotify/`
 - Extracts unique tracks (deduplicates by Spotify URI)
 - Caches results to `extracted-tracks.json` for incremental processing
 - Only new tracks are processed on subsequent runs
 
 #### Phase 2: Fetch Lyrics
+
 - Queries Musixmatch API for each track's lyrics
 - Only fetches lyrics for newly discovered tracks (incremental)
 - Caches results to `tracks-with-lyrics.json`
 - Handles rate limiting and API errors gracefully
 
 #### Phase 3: Seed Database
+
 - Upserts tracks into PostgreSQL database
 - Creates one-to-one relationship between tracks and lyrics
 - Batch inserts streaming history (1000 records per batch)
 - Fully idempotent - safe to re-run multiple times
 
 #### Phase 4: Generate Embeddings
+
 - Creates text representation: `{trackName} {artistName} {albumName}: \n{lyricsBody}`
 - Generates 768-dimension vectors using Google's text-embedding-004
 - Processes in batches of 99 tracks for efficiency
@@ -190,6 +194,7 @@ pnpm run dev
 ## Project Structure
 
 ### Spotify Data Pipeline
+
 - `/prisma/schema.prisma` - Database schema (Track, Lyrics, SpotifyStreamingHistory, LyricsEmbedding)
 - `/prisma/seed.ts` - Complete data pipeline (extract → fetch → seed → embeddings)
 - `/prisma/sql/` - Typed SQL queries for vector operations
@@ -198,6 +203,7 @@ pnpm run dev
   - `upsertEmbedding.sql` - Insert/update embeddings
 
 ### Agent & Tools
+
 - `/src/app/api/chat/route.ts` - Chat endpoint with streaming support
 - `/src/app/api/chat/agent.ts` - Agent configuration with workflow instructions
 - `/src/app/api/chat/search-tracks-tool.ts` - Semantic search tool for lyrics
@@ -205,11 +211,13 @@ pnpm run dev
 - `/src/app/api/chat/track-filters.ts` - Core filtering functions
 
 ### Retrieval & Embeddings
+
 - `/src/app/embeddings.ts` - Embedding utilities (lyrics + email embeddings)
 - `/src/app/song-search/page.tsx` - Song search UI page
 - `/src/lib/db.ts` - Database query utilities
 
 ### UI Components
+
 - `/src/components/ai-elements/` - Chat UI components
   - `conversation.tsx` - Message container with scroll management
   - `message.tsx` - Individual message bubbles
@@ -219,21 +227,19 @@ pnpm run dev
   - `prompt-input.tsx` - Input with attachments and model selection
 
 ### Memory & Persistence
+
 - `/src/lib/persistence-layer.ts` - Chat history + memory storage
 - `/src/app/memory-search/` - Memory extraction and retrieval
 - `/data/db.local.json` - Local storage for chats + memories
 
-### Email Search (Workshop Feature)
-- `/data/emails.json` - 547 emails for hybrid retrieval exercises
-- `/src/app/api/chat/filter-tool.ts` - Email filtering tool
-- Search algorithms: BM25, embeddings, rank fusion
-
 ### Testing & Evaluation
+
 - Evalite integration for tool call testing
 - LLM-as-judge scorers for response quality
 - Test cases for semantic search accuracy
 
 ### MCP & HITL
+
 - `/src/app/api/chat/hitl.ts` - Human-in-the-loop approval system
 - MCP server integration for external tools
 
@@ -249,6 +255,7 @@ The project uses **Evalite** for comprehensive testing of AI agent behavior:
 - **End-to-End Scenarios**: Full workflow tests (search → filter → response generation)
 
 Example test cases:
+
 - "Find love songs" → Should call `searchTrackLyrics` with love-related query
 - "Top 10 most played" → Should call `filterTracks` with `orderBy: "playCount"`
 - "Most listened sad songs" → Should call BOTH tools in sequence
@@ -284,29 +291,34 @@ Prevents destructive actions without user approval:
 ## Tech Stack
 
 ### Core Framework
+
 - **Next.js 15**: App Router with Turbopack for fast development
 - **TypeScript**: Full type safety across frontend and backend
 - **pnpm**: Fast, disk-space efficient package manager
 
 ### AI & ML
+
 - **Vercel AI SDK v5**: Provider-agnostic AI integration with streaming support
 - **Claude Sonnet 4.5**: Primary agent model (Anthropic)
 - **Google Gemini 2.5 Flash**: Embeddings and alternative LLM
 - **text-embedding-004**: 768-dimensional embeddings for semantic search
 
 ### Database & Vector Search
+
 - **PostgreSQL**: Relational database for structured data
 - **Prisma ORM**: Type-safe database access with migrations
 - **pgvector**: Vector similarity search extension
 - **Typed SQL**: `$queryRawTyped` for complex vector queries
 
 ### UI & Styling
+
 - **Radix UI**: Accessible, unstyled component primitives
 - **Tailwind CSS 4**: Utility-first styling with custom theme
 - **Streamdown**: Markdown rendering with syntax highlighting
 - **React 19**: Latest React features and concurrent rendering
 
 ### Testing & Quality
+
 - **Evalite**: AI-native testing framework
 - **LLM-as-Judge**: Automated response quality evaluation
 - **TypeScript strict mode**: Maximum type safety
@@ -314,6 +326,7 @@ Prevents destructive actions without user approval:
 ## Available Scripts
 
 ### Development
+
 ```bash
 pnpm run dev          # Start dev server with Turbopack (http://localhost:3000)
 pnpm run build        # Build for production
@@ -321,6 +334,7 @@ pnpm start            # Start production server
 ```
 
 ### Database
+
 ```bash
 npx prisma migrate dev       # Run migrations and update Prisma client
 npx prisma studio            # Open Prisma Studio (database GUI)
@@ -328,6 +342,7 @@ npx prisma generate          # Generate Prisma client and typed SQL queries
 ```
 
 ### Data Pipeline
+
 ```bash
 npx tsx prisma/seed.ts                # Run full pipeline
 npx tsx prisma/seed.ts --embeddings-only   # Only generate embeddings
@@ -335,34 +350,28 @@ npx tsx prisma/seed.ts --skip-embeddings   # Skip embeddings step
 ```
 
 ### Testing
+
 ```bash
 pnpm test             # Run Evalite test suite
 pnpm test:watch       # Watch mode for tests
 ```
 
-## API Keys Required
-
-### Essential
-- **ANTHROPIC_API_KEY**: Claude Sonnet 4.5 for agent (get from [console.anthropic.com](https://console.anthropic.com))
-- **GOOGLE_GENERATIVE_AI_API_KEY**: Embeddings + Gemini (get from [aistudio.google.com](https://aistudio.google.com))
-- **MUSIXMATCH_API_KEY**: Lyrics fetching (get from [developer.musixmatch.com](https://developer.musixmatch.com))
-
-### Optional
-- **OPENAI_API_KEY**: Alternative models (GPT-4, etc.)
-
 ## Performance Considerations
 
 ### Embeddings Generation
+
 - Batch size: 99 tracks per API call (Google AI limit: 100)
 - Time: ~1 minute per 1000 tracks
 - Storage: ~3KB per embedding (768 floats)
 
 ### Vector Search
+
 - Cosine similarity using pgvector index
 - Sub-second search across 10,000+ tracks
 - Returns top 10 most similar results
 
 ### Database
+
 - Batch inserts: 1000 streaming history records per transaction
 - Upsert operations for idempotent seeding
 - Indexes on trackId, ts (timestamp) for fast filtering
@@ -370,6 +379,7 @@ pnpm test:watch       # Watch mode for tests
 ## Contributing
 
 This is a personal project, but suggestions and feedback are welcome! The architecture demonstrates best practices for:
+
 - AI agent design with multi-step workflows
 - Semantic search with embeddings
 - Database design for time-series music data
