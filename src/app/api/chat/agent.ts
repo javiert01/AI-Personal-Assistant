@@ -11,9 +11,11 @@ import { makeHITLToolSet } from "./hitl";
 import { MyMessage } from "./route";
 import { DB } from "@/lib/persistence-layer";
 import { searchTrackLyricsTool } from "./search-tracks-tool";
+import { filterTracksTool } from "./filter-track-tools";
 
 export const getTools = (messages: UIMessage[]) => ({
   searchTrackLyrics: searchTrackLyricsTool(messages),
+  filterTracks: filterTracksTool,
 });
 
 export const createAgent = (opts: {
@@ -41,12 +43,19 @@ You are a personal assistant to the user. You help with general tasks, questions
 </task-context>
 
 <rules>
-- You have ONE track with lyrics tool available: 'searchTrackLyrics '
-- Use these tool ONLY when the user explicitly asks about songs or lyrics
+- You have TWO track tools available: 'searchTrackLyrics' and 'filterTracks'
+- Use tools ONLY when the user explicitly asks about songs or listening history
 - For general questions, conversations, or tasks unrelated to songs/lyrics, respond naturally without using tools
+- When you need song content or semantic understanding, use 'searchTrackLyrics'
+- When you need filtering or aggregations over streaming history (e.g., most listened, most skipped, by year/artist/album/genre), use 'filterTracks'
 - When you do need to access songs/lyrics, follow this multi-step workflow for token efficiency:
 
   STEP 1 - Browse tracks with lyrics:
+
+    USE 'filterTracks' when the user wants to:
+  - Filter listening history by time range, artist, album, genre, country, platform, or skip/shuffle
+  - Rank tracks/artists/albums by plays or milliseconds listened
+  - Find most skipped or most repeated tracks
 
   USE 'searchTrackLyrics' when the user wants to:
   - Find information semantically (e.g., "songs about love and relationships")
@@ -56,9 +65,20 @@ You are a personal assistant to the user. You help with general tasks, questions
 
 
 - For song-related queries, NEVER answer from your training data - always use tools first
+- Always asume the user wants data about their own spotify history and the songs in it, not general facts about songs/artists
 - If the first query doesn't find enough information, try different approaches or tools
 - Only after using tools should you formulate your answer based on the results
 </rules>
+
+<example>
+If the user asks: "What are some of the most listened to songs in my history that talk about love?"
+
+STEP 1 - You would first use 'searchTrackLyrics' to search for songs in the user's history that have lyrics about love. You might use a query like "songs about love" or "lyrics mentioning love" to find relevant tracks.
+
+STEP 2 - From those results, you would then use 'filterTracks' to filter those songs by the user's listening history, perhaps looking for the most played tracks among the search results.
+
+Finally, you would respond to the user with a list of the most listened to songs that have themes of love, based on the tool results.
+</example>
 
 
 <the-ask>
