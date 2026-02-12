@@ -365,7 +365,7 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
                         </ToolContent>
                       </Tool>
                     );
-                  case "tool-filterEmails":
+                  case "tool-filterTracks":
                     return (
                       <Tool
                         key={`${message.id}-${i}`}
@@ -373,7 +373,7 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
                         defaultOpen={false}
                       >
                         <ToolHeader
-                          title="Filter Emails"
+                          title="Filter Tracks"
                           type={part.type}
                           state={part.state}
                         />
@@ -386,43 +386,45 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
                                   Filters
                                 </h4>
                                 <div className="text-sm space-y-1">
-                                  {part.input.from && (
-                                    <div>
-                                      <span className="font-medium">From:</span>{" "}
-                                      {part.input.from}
-                                    </div>
-                                  )}
-                                  {part.input.to && (
-                                    <div>
-                                      <span className="font-medium">To:</span>{" "}
-                                      {part.input.to}
-                                    </div>
-                                  )}
-                                  {part.input.contains && (
+                                  {part.input.artist && (
                                     <div>
                                       <span className="font-medium">
-                                        Contains:
+                                        Artist:
                                       </span>{" "}
-                                      {part.input.contains}
+                                      {part.input.artist}
                                     </div>
                                   )}
-                                  {part.input.before && (
+                                  {part.input.year && (
+                                    <div>
+                                      <span className="font-medium">Year:</span>{" "}
+                                      {part.input.year}
+                                    </div>
+                                  )}
+                                  {part.input.album && (
                                     <div>
                                       <span className="font-medium">
-                                        Before:
+                                        Album:
+                                      </span>{" "}
+                                      {part.input.album}
+                                    </div>
+                                  )}
+                                  {part.input.startDate && (
+                                    <div>
+                                      <span className="font-medium">
+                                        Start Date:
                                       </span>{" "}
                                       {new Date(
-                                        part.input.before
+                                        part.input.startDate
                                       ).toLocaleString()}
                                     </div>
                                   )}
-                                  {part.input.after && (
+                                  {part.input.endDate && (
                                     <div>
                                       <span className="font-medium">
-                                        After:
+                                        End Date:
                                       </span>{" "}
                                       {new Date(
-                                        part.input.after
+                                        part.input.endDate
                                       ).toLocaleString()}
                                     </div>
                                   )}
@@ -441,7 +443,7 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
                             {/* ADDED: Display email results from filter */}
                             {part.state === "output-available" &&
                               part.output && (
-                                <EmailResultsGrid emails={part.output.emails} />
+                                <TrackResultsGrid tracks={part.output.tracks} />
                               )}
 
                             {/* ADDED: Display error state if filter fails */}
