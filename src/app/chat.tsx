@@ -308,7 +308,7 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
                         <ReasoningContent>{part.text}</ReasoningContent>
                       </Reasoning>
                     );
-                  case "tool-search":
+                  case "tool-searchTrackLyrics":
                     return (
                       <Tool
                         key={`${message.id}-${i}`}
@@ -349,7 +349,7 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
                             )}
                             {part.state === "output-available" &&
                               part.output && (
-                                <EmailResultsGrid emails={part.output.emails} />
+                                <TrackResultsGrid tracks={part.output.tracks} />
                               )}
                             {part.state === "output-error" && (
                               <div className="space-y-2">
@@ -617,44 +617,43 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
 
 // src/app/chat.tsx
 // CHANGED: Display snippets instead of full bodies
-const EmailResultsGrid = ({
-  emails,
+const TrackResultsGrid = ({
+  tracks,
 }: {
-  emails: Array<{
+  tracks: Array<{
     id: string;
-    subject: string;
-    from: string;
-    to: string | string[];
-    snippet?: string;
+    trackName: string;
+    artistName: string;
+    albumName: string;
+    lyricsBody?: string;
     timestamp?: string;
   }>;
 }) => {
   const [showAll, setShowAll] = useState(false);
-  const displayedEmails = showAll ? emails : emails.slice(0, 8);
-  const hasMore = emails.length > 8;
+  const displayedTracks = showAll ? tracks : tracks.slice(0, 8);
+  const hasMore = tracks.length > 8;
 
   return (
     <div className="space-y-2">
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        Results ({emails.length} {emails.length === 1 ? "email" : "emails"})
+        Results ({tracks.length} {tracks.length === 1 ? "track" : "tracks"})
       </h4>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {displayedEmails.map((email, idx) => (
+        {displayedTracks.map((track, idx) => (
           <div
             key={idx}
             className="rounded-md border bg-muted/30 p-3 text-sm space-y-1"
           >
-            <div className="font-medium">{email.subject}</div>
+            <div className="font-medium">{track.trackName}</div>
             <div className="text-muted-foreground text-xs">
-              <span className="font-medium">From:</span> {email.from}
+              <span className="font-medium">Artist:</span> {track.artistName}
             </div>
             <div className="text-muted-foreground text-xs">
-              <span className="font-medium">To:</span>{" "}
-              {Array.isArray(email.to) ? email.to.join(", ") : email.to}
+              <span className="font-medium">Album:</span> {track.albumName}
             </div>
-            {email.snippet && (
+            {track.lyricsBody && (
               <div className="text-muted-foreground text-xs mt-2 pt-2 border-t">
-                {email.snippet}
+                {track.lyricsBody}
               </div>
             )}
           </div>
@@ -667,7 +666,7 @@ const EmailResultsGrid = ({
           onClick={() => setShowAll(true)}
           className="w-full"
         >
-          Show more ({emails.length - 8} more)
+          Show more ({tracks.length - 8} more)
         </Button>
       )}
     </div>
