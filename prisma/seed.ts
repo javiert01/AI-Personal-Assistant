@@ -62,7 +62,7 @@ async function loadSpotifyJsonFiles(): Promise<SpotifyStreamingRecord[]> {
 
   // Filter for Spotify JSON files (files containing 'spotify' in the name)
   const spotifyFiles = files.filter(
-    (f) => f.toLowerCase().includes("spotify") && f.endsWith(".json")
+    (f) => f.toLowerCase().includes("streaming") && f.endsWith(".json")
   );
 
   console.log(`Found ${spotifyFiles.length} Spotify JSON file(s)`);
@@ -107,11 +107,32 @@ async function loadExistingTracks(): Promise<UniqueTrack[]> {
 }
 
 /**
+ * Load existing tracks with lyrics from tracks-with-lyrics.json if it exists
+ */
+async function loadExistingTracksWithLyrics(): Promise<TrackWithLyrics[]> {
+  const dataDir = path.join(process.cwd(), "data");
+  const tracksWithLyricsPath = path.join(dataDir, "tracks-with-lyrics.json");
+
+  try {
+    const data = await readFile(tracksWithLyricsPath, "utf-8");
+    const tracks = JSON.parse(data);
+    console.log(
+      `  ✓ Loaded ${tracks.length} existing tracks with lyrics from cache`
+    );
+    return tracks;
+  } catch (error) {
+    console.log(`  ℹ No existing lyrics cache found`);
+    return [];
+  }
+}
+
+/**
  * Extract unique tracks from streaming records and merge with existing tracks
+ * Returns both all tracks and newly discovered tracks
  */
 async function extractUniqueTracks(
   records: SpotifyStreamingRecord[]
-): Promise<UniqueTrack[]> {
+): Promise<{ allTracks: UniqueTrack[]; newTracks: UniqueTrack[] }> {
   console.log("\nExtracting unique tracks...");
 
   // Load existing tracks from cache
@@ -124,6 +145,7 @@ async function extractUniqueTracks(
   }
 
   const existingCount = trackMap.size;
+  const newTracks: UniqueTrack[] = [];
 
   // Add new tracks from current records
   for (const record of records) {
@@ -135,25 +157,28 @@ async function extractUniqueTracks(
       record.master_metadata_album_album_name
     ) {
       if (!trackMap.has(record.spotify_track_uri)) {
-        trackMap.set(record.spotify_track_uri, {
+        const newTrack = {
           spotifyTrackUri: record.spotify_track_uri,
           trackName: record.master_metadata_track_name,
           artistName: record.master_metadata_album_artist_name,
           albumName: record.master_metadata_album_album_name,
-        });
+        };
+        trackMap.set(record.spotify_track_uri, newTrack);
+        newTracks.push(newTrack);
       }
     }
   }
 
-  const uniqueTracks = Array.from(trackMap.values());
-  const newTracksCount = uniqueTracks.length - existingCount;
+  const allTracks = Array.from(trackMap.values());
 
-  console.log(`  Found ${uniqueTracks.length} total unique tracks`);
+  console.log(`  Found ${allTracks.length} total unique tracks`);
   if (existingCount > 0) {
-    console.log(`  ✓ Added ${newTracksCount} new tracks to existing ${existingCount}`);
+    console.log(
+      `  ✓ Added ${newTracks.length} new tracks to existing ${existingCount}`
+    );
   }
 
-  return uniqueTracks;
+  return { allTracks, newTracks };
 }
 
 /**
@@ -483,32 +508,43 @@ async function verifySeeding(): Promise<void> {
 }
 
 /**
- * Generate embeddings for all tracks with lyrics
+ * Generate embeddings for tracks with lyrics that don't have embeddings yet
  */
 async function generateEmbeddings(): Promise<void> {
   console.log("\n=== Phase 4: Generating Embeddings ===");
 
   try {
-    // Fetch all tracks with lyrics from the database
-    const tracksWithLyrics = await prisma.track.findMany({
+    // Fetch all tracks with lyrics, including their embeddings
+    const allTracksWithLyrics = await prisma.track.findMany({
       where: {
         lyrics: { isNot: null },
       },
       include: {
-        lyrics: true,
+        lyrics: {
+          include: {
+            embedding: true,
+          },
+        },
       },
     });
 
-    console.log(
-      `Found ${tracksWithLyrics.length} tracks with lyrics to process`
+    // Filter to only tracks that don't have embeddings yet
+    const tracksWithoutEmbeddings = allTracksWithLyrics.filter(
+      (track) => track.lyrics && !track.lyrics.embedding
     );
 
-    if (tracksWithLyrics.length === 0) {
+    console.log(
+      `Found ${allTracksWithLyrics.length} tracks with lyrics, ${tracksWithoutEmbeddings.length} need embeddings`
+    );
+
+    if (tracksWithoutEmbeddings.length === 0) {
       console.log(
-        "No tracks with lyrics found. Skipping embeddings generation."
+        "✓ All tracks with lyrics already have embeddings. Skipping generation."
       );
       return;
     }
+
+    const tracksWithLyrics = tracksWithoutEmbeddings;
 
     const BATCH_SIZE = 99;
     let totalProcessed = 0;
@@ -626,28 +662,65 @@ export async function main() {
       records = await loadSpotifyJsonFiles();
 
       // Phase 2: Extract unique tracks (merges with existing cache)
-      const uniqueTracks = await extractUniqueTracks(records);
+      const { allTracks, newTracks } = await extractUniqueTracks(records);
 
       // Output results to console
       console.log("\n=== Unique Tracks Extracted ===");
       console.log(`Total records: ${records.length}`);
-      console.log(`Unique tracks: ${uniqueTracks.length}`);
+      console.log(`Total unique tracks: ${allTracks.length}`);
+      console.log(`New tracks to fetch lyrics for: ${newTracks.length}`);
 
       console.log("\nSample tracks:");
-      uniqueTracks.slice(0, 5).forEach((track) => {
+      allTracks.slice(0, 5).forEach((track) => {
         console.log(`  - ${track.trackName} by ${track.artistName}`);
       });
 
       // Save extracted tracks to JSON file for inspection
       const extractedTracksPath = path.join(dataDir, "extracted-tracks.json");
-      await writeFile(
-        extractedTracksPath,
-        JSON.stringify(uniqueTracks, null, 2)
-      );
+      await writeFile(extractedTracksPath, JSON.stringify(allTracks, null, 2));
       console.log(`\nExtracted tracks saved to: ${extractedTracksPath}`);
 
-      // Phase 2: Fetch lyrics for all tracks
-      tracksWithLyrics = await fetchAllLyrics(uniqueTracks);
+      // Phase 2: Fetch lyrics only for NEW tracks
+      if (newTracks.length > 0) {
+        console.log(
+          `\n=== Fetching Lyrics for ${newTracks.length} New Tracks ===`
+        );
+        const newTracksWithLyrics = await fetchAllLyrics(newTracks);
+
+        // Load existing tracks with lyrics
+        const existingTracksWithLyrics = await loadExistingTracksWithLyrics();
+
+        // Merge: Keep existing lyrics, add new ones
+        const existingLyricsMap = new Map<string, TrackWithLyrics>();
+        for (const track of existingTracksWithLyrics) {
+          existingLyricsMap.set(track.spotifyTrackUri, track);
+        }
+
+        // Add new tracks with lyrics
+        for (const track of newTracksWithLyrics) {
+          existingLyricsMap.set(track.spotifyTrackUri, track);
+        }
+
+        // Convert back to array
+        tracksWithLyrics = Array.from(existingLyricsMap.values());
+
+        console.log(
+          `\n✓ Total tracks with lyrics data: ${tracksWithLyrics.length}`
+        );
+      } else {
+        console.log(`\n=== No New Tracks - Skipping Lyrics Fetching ===`);
+        // Load existing tracks with lyrics
+        tracksWithLyrics = await loadExistingTracksWithLyrics();
+
+        if (tracksWithLyrics.length === 0) {
+          console.warn("⚠ No tracks with lyrics found. Creating empty list.");
+          // Create tracks without lyrics for database insertion
+          tracksWithLyrics = allTracks.map((track) => ({
+            ...track,
+            lyricsError: "No lyrics fetch attempted",
+          }));
+        }
+      }
 
       // Save tracks with lyrics to JSON file
       const tracksWithLyricsPath = path.join(
